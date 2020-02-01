@@ -1,0 +1,5 @@
+ipython
+fs.dropboxfs
+fs.onedrivefs
+gspread
+oauth2client
