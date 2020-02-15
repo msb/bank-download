@@ -67,6 +67,56 @@ def create_convert_id(indices):
     return convert_id
 
 
+# A map of matching category keyed by their category tags.
+CATEGORIES = {f'#{category}': category for category in {
+    'Transfer',
+    'Maintenance',
+    'Groceries',
+    'Cash',
+    'Holiday',
+    'Auto',
+    'Energy',
+    'Presents',
+    'Gadgets',
+    'Pastimes',
+    'Entertainment',
+    'Mobile',
+    'Internet',
+    'Water',
+    'Charity',
+    'Medical',
+    'Travel',
+    'Betting',
+    'Official',
+    'Clothing',
+    'Homeware',
+    'Biking',
+}}
+CATEGORIES.update({
+    '#CouncilTax': 'Council Tax',
+    '#EatingOut': 'Eating Out',
+    '#HomeInsurance': 'Home Insurance',
+    '#WhiteGoods': 'White Goods',
+    '#TVLicense': 'TV License',
+})
+
+
+def convert_monzo_category(row):
+    """
+    Converts data to a monzo category. Uses the "category" row unless the "notes" row has a tag
+    that matches a known category.
+    """
+    categories = [
+        CATEGORIES[word] for word in row[10].split()
+        if word.startswith('#') and word in CATEGORIES
+    ]
+
+    for category in categories:
+        return category
+
+    return row[6]
+
+
 # the transactions worksheet's column titles
 COLUMNS = [
     'Account', 'Date', 'Description', 'Type', 'Money In', 'Money Out', 'Id', 'Reconciled',
@@ -88,6 +138,7 @@ CONVERSION_MONZO = [
     create_convert_amount(2, True),
     lambda row: row[0],
     lambda _: 'x',
+    convert_monzo_category,
 ]
 
 # A list of converters for a Smile CSV.
@@ -98,7 +149,6 @@ CONVERSION_SMILE = [
     create_convert_amount_simple(3),
     create_convert_amount_simple(4),
     create_convert_id(range(0, 5)),
-    lambda _: None,
 ]
 
 # A list of converters for a Smile CC CSV.
@@ -109,7 +159,6 @@ CONVERSION_SMILE_CC = [
     create_convert_amount_simple(2),
     create_convert_amount_simple(3),
     create_convert_id(range(0, 4)),
-    lambda _: None,
 ]
 
 # A map of conversions keyed on the account name they apply to
