@@ -68,7 +68,7 @@ def create_convert_id(indices):
 
 
 # A map of matching category keyed by their category tags.
-CATEGORIES = {f'#{category}': category for category in {
+CATEGORIES = {f'#{category.lower()}': category for category in {
     'Transfer',
     'Maintenance',
     'Groceries',
@@ -93,23 +93,23 @@ CATEGORIES = {f'#{category}': category for category in {
     'Biking',
 }}
 CATEGORIES.update({
-    '#CouncilTax': 'Council Tax',
-    '#EatingOut': 'Eating Out',
-    '#HomeInsurance': 'Home Insurance',
-    '#WhiteGoods': 'White Goods',
-    '#TVLicense': 'TV License',
+    '#counciltax': 'Council Tax',
+    '#eatingout': 'Eating Out',
+    '#homeinsurance': 'Home Insurance',
+    '#whitegoods': 'White Goods',
+    '#tvlicense': 'TV License',
 })
 
 
 def create_convert_monzo_category(notes_index, category_index):
     """
     Returns a converter for a monzo category. Uses the "category" row unless the "notes" row has a
-    tag that matches a known category.
+    tag that matches a known category. The tags aren't case sensitive.
     """
     def convert_monzo_category(row):
         categories = [
-            CATEGORIES[word] for word in row[notes_index].split()
-            if word.startswith('#') and word in CATEGORIES
+            CATEGORIES[word.lower()] for word in row[notes_index].split()
+            if word.startswith('#') and word.lower() in CATEGORIES
         ]
 
         for category in categories:
@@ -245,7 +245,6 @@ def main():
     generated. A cut-off date can be set before which no transactions are uploaded (useful when
     archiving transactions).
     """
-
     credentials = ServiceAccountCredentials.from_json_keyfile_name(
         os.environ['SERVICE_ACCOUNT_CREDENTIALS_FILE'], SPREADSHEETS_SCOPE
     )
