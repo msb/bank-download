@@ -177,12 +177,14 @@ CONVERSION_SMILE_CC = [
 
 # A map of conversions keyed on the account name they apply to
 CONVERSIONS = {
-    'Monzo': CONVERSION_MONZO_2,
-    'Monzo Joint': CONVERSION_MONZO_2,
-    'Smile': CONVERSION_SMILE,
-    'Smile Joint': CONVERSION_SMILE,
-    'Smile CC': CONVERSION_SMILE_CC,
-    'Smile CC Joint': CONVERSION_SMILE_CC,
+    ('Monzo', 'Monzo'): CONVERSION_MONZO,
+    ('Monzo', 'Monzo Joint'): CONVERSION_MONZO,
+    ('Monzo 2', 'Monzo'): CONVERSION_MONZO_2,
+    ('Monzo 2', 'Monzo Joint'): CONVERSION_MONZO_2,
+    ('Smile', 'Smile'): CONVERSION_SMILE,
+    ('Smile', 'Smile Joint'): CONVERSION_SMILE,
+    ('Smile CC', 'Smile CC'): CONVERSION_SMILE_CC,
+    ('Smile CC', 'Smile CC Joint'): CONVERSION_SMILE_CC,
 }
 
 
@@ -216,15 +218,27 @@ def main():
     This script walks a directory to find and upload CSV files containing bank transactions to a
     Google spreadsheet. The script expects the following directory structure:
         root
-            {an account name}
-                {any name}.csv
-                {other name}.csv
-                    :
-            {other account name}
-                {any name}.csv
-                {other name}.csv
-                    :
-                :
+            {a CSV file format}
+                {an account name}
+                    {any name}.csv
+                    {other name}.csv
+                     :
+                {other account name}
+                    {any name}.csv
+                    {other name}.csv
+                     :
+                 :
+            {another CSV file format}
+                {an account name}
+                    {any name}.csv
+                    {other name}.csv
+                     :
+                {other account name}
+                    {any name}.csv
+                    {other name}.csv
+                     :
+                 :
+             :
     The names of the previously uploaded files are maintained in a worksheet called 'Processed' and
     not uploaded again. The script also checks that previously uploaded transactions are not
     uploaded again using the transaction's id. If the transaction doesn't have an id then one is
@@ -257,18 +271,19 @@ def main():
         ID + 1, value_render_option='FORMULA'
     )}
 
-    def process_download(account_name, file_name):
+    def process_download(file_type, account_name, file_name):
         """
-        A closure that processes a CSV `file_name` for a particular `account_name`
+        A closure that processes a CSV `file_name` for a particular `file_type` and `account_name`
         and returns a list of converted rows.
         """
-        # get the id, money, and date converters for the account_name
-        convert_id = CONVERSIONS[account_name][ID - 1]
-        convert_money_in = CONVERSIONS[account_name][MONEY_IN - 1]
-        convert_money_out = CONVERSIONS[account_name][MONEY_OUT - 1]
-        convert_date = CONVERSIONS[account_name][DATE - 1]
+        # get the id, money, and date converters for the file_type and account_name
+        key = (file_type, account_name)
+        convert_id = CONVERSIONS[key][ID - 1]
+        convert_money_in = CONVERSIONS[key][MONEY_IN - 1]
+        convert_money_out = CONVERSIONS[key][MONEY_OUT - 1]
+        convert_date = CONVERSIONS[key][DATE - 1]
         # get the row converters
-        converters = [lambda _: account_name] + CONVERSIONS[account_name]
+        converters = [lambda _: account_name] + CONVERSIONS[key]
         with input_path.open(file_name) as csvfile:
             reader = csv.reader(csvfile)
             # discard the header
@@ -289,7 +304,7 @@ def main():
 
     # walk the tree of CSV files
     for step in input_path.walk(filter=['*.csv']):
-        account_name = step.path[1:]
+        path = step.path.split('/')
         for file in step.files:
             file_name = f'{step.path}/{file.name}'
             try:
@@ -297,7 +312,9 @@ def main():
             except gspread.CellNotFound:
                 # process the file if it doesn't exists in 'Processed'
                 LOGGER.info(f'Processing {file_name}')
-                rows += process_download(account_name, file_name)
+                file_type = path[1]
+                account_name = path[2]
+                rows += process_download(file_type, account_name, file_name)
                 # add the file_name to processed
                 processed.append_row([file_name], value_input_option='RAW')
 

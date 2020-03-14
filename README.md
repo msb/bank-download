@@ -3,15 +3,27 @@ This is a containerised script that walks a directory to find and upload CSV fil
 transactions to a Google spreadsheet. The script expects the following directory structure:
 ```
   root
+    {a CSV file format}
       {an account name}
+        {any name}.csv
+        {other name}.csv
+        :
+        {other account name}
           {any name}.csv
           {other name}.csv
-              :
-      {other account name}
-          {any name}.csv
-          {other name}.csv
-              :
           :
+        :
+    {another CSV file format}
+      {an account name}
+        {any name}.csv
+        {other name}.csv
+        :
+        {other account name}
+          {any name}.csv
+          {other name}.csv
+          :
+        :
+     :
 ```
 The names of the previously uploaded files are maintained in a worksheet called 'Processed' and
 not uploaded again. The script also checks that previously uploaded transactions are not
