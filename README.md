@@ -57,7 +57,7 @@ docker run --rm \
   --env-file bankdownload.env \
   --volume [path/to/credentials]:/credentials_file.json \
   --user $(id -u):$(id -g) --volume "$PWD:/data" \
-  msb140610/bank-download:1
+  msb140610/bank-download:2
 ```
 
 The script uses [PyFilesystem](https://github.com/pyfilesystem/pyfilesystem2) to write to the
@@ -87,7 +87,7 @@ with no need for a bind volume.
 ```bash
 docker run --rm --env-file bankdownload.env \
   --volume [path/to/credentials]:/credentials_file.json \
-  msb140610/bank-download:1
+  msb140610/bank-download:2
 
 ```
 
