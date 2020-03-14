@@ -101,20 +101,22 @@ CATEGORIES.update({
 })
 
 
-def convert_monzo_category(row):
+def create_convert_monzo_category(notes_index, category_index):
     """
-    Converts data to a monzo category. Uses the "category" row unless the "notes" row has a tag
-    that matches a known category.
+    Returns a converter for a monzo category. Uses the "category" row unless the "notes" row has a
+    tag that matches a known category.
     """
-    categories = [
-        CATEGORIES[word] for word in row[10].split()
-        if word.startswith('#') and word in CATEGORIES
-    ]
+    def convert_monzo_category(row):
+        categories = [
+            CATEGORIES[word] for word in row[notes_index].split()
+            if word.startswith('#') and word in CATEGORIES
+        ]
 
-    for category in categories:
-        return category
+        for category in categories:
+            return category
 
-    return row[6]
+        return row[category_index]
+    return convert_monzo_category
 
 
 # the transactions worksheet's column titles
@@ -129,7 +131,7 @@ MONEY_IN = COLUMNS.index('Money In')
 MONEY_OUT = COLUMNS.index('Money Out')
 ID = COLUMNS.index('Id')
 
-# A list of converters for a Monzo CSV.
+# A list of converters for a Monzo CSV (version 1).
 CONVERSION_MONZO = [
     create_convert_date(1, '%Y-%m-%dT%H:%M:%SZ'),
     lambda row: row[8],
@@ -138,7 +140,19 @@ CONVERSION_MONZO = [
     create_convert_amount(2, True),
     lambda row: row[0],
     lambda _: 'x',
-    convert_monzo_category,
+    create_convert_monzo_category(10, 6),
+]
+
+# A list of converters for a Monzo CSV (version 2).
+CONVERSION_MONZO_2 = [
+    create_convert_date(1, '%d/%m/%Y'),
+    lambda row: row[4],
+    lambda row: row[6],
+    create_convert_amount(7, False),
+    create_convert_amount(7, True),
+    lambda row: row[0],
+    lambda _: 'x',
+    create_convert_monzo_category(11, 6),
 ]
 
 # A list of converters for a Smile CSV.
@@ -163,8 +177,8 @@ CONVERSION_SMILE_CC = [
 
 # A map of conversions keyed on the account name they apply to
 CONVERSIONS = {
-    'Monzo': CONVERSION_MONZO,
-    'Monzo Joint': CONVERSION_MONZO,
+    'Monzo': CONVERSION_MONZO_2,
+    'Monzo Joint': CONVERSION_MONZO_2,
     'Smile': CONVERSION_SMILE,
     'Smile Joint': CONVERSION_SMILE,
     'Smile CC': CONVERSION_SMILE_CC,
