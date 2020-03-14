@@ -68,7 +68,7 @@ def create_convert_id(indices):
 
 
 # A map of matching category keyed by their category tags.
-CATEGORIES = {f'#{category.lower()}': category for category in {
+CATEGORIES_BY_TAG = {f'#{"".join(category.lower().split())}': category for category in {
     'Transfer',
     'Maintenance',
     'Groceries',
@@ -85,37 +85,39 @@ CATEGORIES = {f'#{category.lower()}': category for category in {
     'Water',
     'Charity',
     'Medical',
-    'Travel',
+    'Transport',
     'Betting',
     'Official',
     'Clothing',
     'Homeware',
     'Biking',
+    'Cleaning',
+    'Council Tax',
+    'Eating Out',
+    'Home Insurance',
+    'White Goods',
+    'TV License',
 }}
-CATEGORIES.update({
-    '#counciltax': 'Council Tax',
-    '#eatingout': 'Eating Out',
-    '#homeinsurance': 'Home Insurance',
-    '#whitegoods': 'White Goods',
-    '#tvlicense': 'TV License',
-})
+
+# The full set of categories
+CATEGORIES = {category for category in CATEGORIES_BY_TAG.values()}
 
 
 def create_convert_monzo_category(notes_index, category_index):
     """
-    Returns a converter for a monzo category. Uses the "category" row unless the "notes" row has a
-    tag that matches a known category. The tags aren't case sensitive.
+    Returns a converter for a monzo category. Uses the "category" row (if it exists in CATEGORIES)
+    unless the "notes" row has a tag that matches a known category. The tags aren't case sensitive.
     """
     def convert_monzo_category(row):
         categories = [
-            CATEGORIES[word.lower()] for word in row[notes_index].split()
-            if word.startswith('#') and word.lower() in CATEGORIES
+            CATEGORIES_BY_TAG[word.lower()] for word in row[notes_index].split()
+            if word.startswith('#') and word.lower() in CATEGORIES_BY_TAG
         ]
 
         for category in categories:
             return category
 
-        return row[category_index]
+        return row[category_index] if row[category_index] in CATEGORIES else None
     return convert_monzo_category
 
 
