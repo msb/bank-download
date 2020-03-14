@@ -272,10 +272,13 @@ def main():
         ID + 1, value_render_option='FORMULA'
     )}
 
+    # a list of converted sheet rows returned from `process_download()`
+    rows = []
+
     def process_download(file_type, account_name, file_name):
         """
         A closure that processes a CSV `file_name` for a particular `file_type` and `account_name`
-        and returns a list of converted rows.
+        and updates list of converted rows and set of existing ids.
         """
         # get the id, money, and date converters for the file_type and account_name
         key = (file_type, account_name)
@@ -291,17 +294,15 @@ def main():
             next(reader)
             # filter all the new non-zero transactions > the cut_off_date
             # and convert them to sheet rows
-            rows = [
+            file_rows = [
                 [convert(row) for convert in converters]
                 for row in reader if
                 convert_id(row) not in existing_ids and
                 convert_date(row) >= cut_off_date and
                 not (convert_money_in(row) is None and convert_money_out(row) is None)
             ]
-            return rows
-
-    # a list of converted sheet rows returned from `process_download()`
-    rows = []
+            rows.extend(file_rows)
+            existing_ids.update({row[ID] for row in file_rows})
 
     # walk the tree of CSV files
     for step in input_path.walk(filter=['*.csv']):
@@ -315,7 +316,7 @@ def main():
                 LOGGER.info(f'Processing {file_name}')
                 file_type = path[1]
                 account_name = path[2]
-                rows += process_download(file_type, account_name, file_name)
+                process_download(file_type, account_name, file_name)
                 # add the file_name to processed
                 processed.append_row([file_name], value_input_option='RAW')
 
@@ -330,6 +331,8 @@ def main():
             for j, value in enumerate(row):
                 cell_list[i * len(COLUMNS) + j].value = value
         transactions.update_cells(cell_list)
+
+    LOGGER.info(f'{len(rows)} new transactions')
 
 
 if __name__ == "__main__":
