@@ -1,0 +1,7 @@
+.dockerignore
+*.env
+*.json
+venv
+.git
+.gitignore
+.vscode
