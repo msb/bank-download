@@ -53,11 +53,13 @@ target sheet. The set up steps are as follows:
 Then running the following docker command will output the script to the current working directory:
 
 ```bash
+export VERSION=4
+
 docker run --rm \
   --env-file bankdownload.env \
   --volume [path/to/credentials]:/credentials_file.json \
   --user $(id -u):$(id -g) --volume "$PWD:/data" \
-  msb140610/bank-download:3
+  msb140610/bank-download:$VERSION
 ```
 
 The script uses [PyFilesystem](https://github.com/pyfilesystem/pyfilesystem2) to write to the
@@ -87,7 +89,7 @@ with no need for a bind volume.
 ```bash
 docker run --rm --env-file bankdownload.env \
   --volume [path/to/credentials]:/credentials_file.json \
-  msb140610/bank-download:3
+  msb140610/bank-download:$VERSION
 
 ```
 
