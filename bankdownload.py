@@ -1,12 +1,14 @@
-import os
+import csv
 import datetime
+import hashlib
 import logging
 import logging.config
+import os
+from contextlib import contextmanager
+
+import gspread
 from fs import open_fs
 from oauth2client.service_account import ServiceAccountCredentials
-import gspread
-import csv
-import hashlib
 
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), 'logging.conf'))
 
@@ -217,6 +219,22 @@ def get_or_create_transactions(spreadsheet):
     return transactions
 
 
+@contextmanager
+def append_new_rows(sheet, new_rows, columns):
+    """
+    A context manager to simplify the creation of new rows
+    """
+    # add new rows and retrieve the new blank rows
+    sheet.add_rows(new_rows)
+    new_cells = sheet.range(sheet.row_count + 1, 1, sheet.row_count + new_rows, columns)
+
+    # yield to populate the new rows
+    yield new_cells
+
+    # update the new rows
+    sheet.update_cells(new_cells)
+
+
 def main():
     """
     This script walks a directory to find and upload CSV files containing bank transactions to a
@@ -260,6 +278,14 @@ def main():
     # the 'Processed' worksheet
     processed = get_or_create_processed(spreadsheet)
 
+    # A list of processed files retrieved from the 'Processed' worksheet
+    existing_files = {file for file in processed.col_values(
+        1, value_render_option='FORMULA'
+    )}
+
+    # A list of new files processed
+    new_files = []
+
     # the 'Transactions' worksheet
     transactions = get_or_create_transactions(spreadsheet)
 
@@ -275,12 +301,12 @@ def main():
     )}
 
     # a list of converted sheet rows returned from `process_download()`
-    rows = []
+    new_rows = []
 
     def process_download(file_type, account_name, file_name):
         """
         A closure that processes a CSV `file_name` for a particular `file_type` and `account_name`
-        and updates list of converted rows and set of existing ids.
+        and updates list of new rows and set of existing ids.
         """
         # get the id, money, and date converters for the file_type and account_name
         key = (file_type, account_name)
@@ -296,45 +322,44 @@ def main():
             next(reader)
             # filter all the new non-zero transactions > the cut_off_date
             # and convert them to sheet rows
-            file_rows = [
+            sheet_rows = [
                 [convert(row) for convert in converters]
                 for row in reader if
                 convert_id(row) not in existing_ids and
                 convert_date(row) >= cut_off_date and
                 not (convert_money_in(row) is None and convert_money_out(row) is None)
             ]
-            rows.extend(file_rows)
-            existing_ids.update({row[ID] for row in file_rows})
+            new_rows.extend(sheet_rows)
+            existing_ids.update({row[ID] for row in sheet_rows})
 
     # walk the tree of CSV files
     for step in input_path.walk(filter=['*.csv']):
         path = step.path.split('/')
         for file in step.files:
             file_name = f'{step.path}/{file.name}'
-            try:
-                processed.find(file_name)
-            except gspread.CellNotFound:
-                # process the file if it doesn't exists in 'Processed'
+            # process the file if it doesn't exists in 'Processed'
+            if file_name not in existing_files:
                 LOGGER.info(f'Processing {file_name}')
                 file_type = path[1]
                 account_name = path[2]
                 process_download(file_type, account_name, file_name)
-                # add the file_name to processed
-                processed.append_row([file_name], value_input_option='RAW')
+                # add the file_name to new_files
+                new_files.append(file_name)
 
-    if len(rows) > 0:
-        # add and retrieve the new blank rows
-        transactions.add_rows(len(rows))
-        cell_list = transactions.range(
-            transactions.row_count + 1, 1, transactions.row_count + len(rows), len(COLUMNS)
-        )
-        # populate and update the new rows
-        for i, row in enumerate(rows):
-            for j, value in enumerate(row):
-                cell_list[i * len(COLUMNS) + j].value = value
-        transactions.update_cells(cell_list)
+    LOGGER.info(f'{len(new_rows)} new transactions')
 
-    LOGGER.info(f'{len(rows)} new transactions')
+    if len(new_rows) > 0:
+        # append new rows to transaction sheet
+        with append_new_rows(transactions, len(new_rows), len(COLUMNS)) as new_row_cells:
+            for i, row in enumerate(new_rows):
+                for j, value in enumerate(row):
+                    new_row_cells[i * len(COLUMNS) + j].value = value
+
+    if len(new_files) > 0:
+        # append new files to processed sheet
+        with append_new_rows(processed, len(new_files), 1) as new_file_cells:
+            for i, value in enumerate(new_files):
+                new_file_cells[i].value = value
 
 
 if __name__ == "__main__":
