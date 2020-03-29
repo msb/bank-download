@@ -100,7 +100,9 @@ CATEGORIES_BY_TAG = {f'#{"".join(category.lower().split())}': category for categ
 }}
 
 # The full set of categories
-CATEGORIES = {category for category in CATEGORIES_BY_TAG.values()}
+CATEGORIES = {category: category for category in CATEGORIES_BY_TAG.values()}
+# Additional mappings
+CATEGORIES = {**CATEGORIES, 'Eating out': 'Eating Out'}
 
 
 def create_convert_monzo_category(notes_index, category_index):
@@ -117,7 +119,7 @@ def create_convert_monzo_category(notes_index, category_index):
         for category in categories:
             return category
 
-        return row[category_index] if row[category_index] in CATEGORIES else None
+        return CATEGORIES.get(row[category_index])
     return convert_monzo_category
 
 
