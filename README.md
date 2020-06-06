@@ -41,14 +41,18 @@ SPREADSHEET_KEY={sheet id}
 ```
 
 To get the sheet id, create a sheet and then get the id from the sheet's. There are different ways
-of authenticating to Google Sheets but this example uses a service account with permission on the
+of authenticating to Google Sheets but this example uses a GCP service account with permission on the
 target sheet. The set up steps are as follows:
 
- - create a GCP project
- - In that project:
-   - create a GCP service account, downloading it's credentials file
-   - enable the Google Sheets API
- - Allow the service account read/write permission on the sheet (use it's email address)
+ - Create [a GCP project](https://cloud.google.com/storage/docs/projects) to contain your cluster.
+   [A Terraform module](https://github.com/msb/tf-gcp-project) has been provided to automate this 
+   for you. Following the module's README you will see that this step has already been partially
+   complete by the inclusion of 
+   [the `project` folder](https://github.com/msb/bank-download/tree/master/project).
+   Note that when running `terraform.output.sh` you should target the output at 
+   [the `runner` folder](https://github.com/msb/bank-download/tree/master/runner).
+ - Allow the service account read/write permission on the sheet 
+   (use the email address found in the credentials file in the `runner` folder)
 
 Then running the following docker command will output the script to the current working directory:
 
@@ -57,7 +61,7 @@ export VERSION=4
 
 docker run --rm \
   --env-file bankdownload.env \
-  --volume [path/to/credentials]:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
   --user $(id -u):$(id -g) --volume "$PWD:/data" \
   msb140610/bank-download:$VERSION
 ```
@@ -72,9 +76,8 @@ the `fs.dropboxfs` and  `fs.onedrivefs` third party file systems and a
 
 The set up steps are sketched as follows:
 
- - In the previously enabled project enable the Google Drive API
- - Allow the service account read/write permission on the target GDrive folder 
-   (use it's email address)
+ - Allow the service account read/write permission on the target GDrive folder
+   (use the email address found in the credentials file in the `runner` folder)
  - Note the id of the target GDrive folder 
 
 Then update the `bankdownload.env` file with the following variables:
@@ -88,9 +91,8 @@ with no need for a bind volume.
 
 ```bash
 docker run --rm --env-file bankdownload.env \
-  --volume [path/to/credentials]:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
   msb140610/bank-download:$VERSION
-
 ```
 
 It is noted that the customisation of fs.googledrivefs is fairly hacky at the moment and I hope to
@@ -111,7 +113,7 @@ Changes to the script in the local project can be tested using a bind volume as 
 ```bash
 docker run --rm \
   --env-file bankdownload.env \
-  --volume [path/to/credentials]:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
   --volume "$PWD:/app" \
   bank-download
 ```
@@ -122,7 +124,7 @@ or PyFilesystem libraries as follows:
 ```bash
 docker run --rm -it \
   --env-file bankdownload.env \
-  --volume [path/to/credentials]:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
   --volume "$PWD:/app" \
   --entrypoint ipython \
   bank-download
