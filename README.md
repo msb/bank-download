@@ -35,8 +35,8 @@ To run the script in it's simplest form, create a `bankdownload.env` file with t
 variables:
 
 ```
+GOOGLE_APPLICATION_CREDENTIALS=/credentials.json
 INPUT_PATH=osfs:///path/to/root
-SERVICE_ACCOUNT_CREDENTIALS_FILE=/credentials_file.json
 SPREADSHEET_KEY={sheet id}
 ```
 
@@ -57,11 +57,11 @@ target sheet. The set up steps are as follows:
 Then running the following docker command will output the script to the current working directory:
 
 ```bash
-export VERSION=4
+export VERSION=1.0
 
 docker run --rm \
   --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
   --user $(id -u):$(id -g) --volume "$PWD:/data" \
   msb140610/bank-download:$VERSION
 ```
@@ -70,7 +70,7 @@ The script uses [PyFilesystem](https://github.com/pyfilesystem/pyfilesystem2) to
 output path so the script can be configured to write to any file system supported by PyFilesystem
 which could be useful if you aren't running docker locally. The container has been configured with
 the `fs.dropboxfs` and  `fs.onedrivefs` third party file systems and a 
-[custom WIP version of `fs.googledrivefs`](https://github.com/msb/fs.googledrivefs/tree/file_id_support).
+[custom WIP version of `fs.googledrivefs`](https://github.com/msb/fs.googledrivefs/tree/service-account-support).
 
 ### Configuring the output path with fs.googledrivefs
 
@@ -83,7 +83,7 @@ The set up steps are sketched as follows:
 Then update the `bankdownload.env` file with the following variables:
 
 ```
-INPUT_PATH=googledrive:///{the id of the target GDrive folder}?service_account_credentials_file=%2Fcredentials_file.json
+INPUT_PATH=googledrive:///?root_id={the id of the target GDrive folder}
 ```
 
 Finally, run the container and the generated script with be written to the target GDrive folder
@@ -91,12 +91,9 @@ with no need for a bind volume.
 
 ```bash
 docker run --rm --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
   msb140610/bank-download:$VERSION
 ```
-
-It is noted that the customisation of fs.googledrivefs is fairly hacky at the moment and I hope to
-tidy it up in the future.
 
 ### Development
 
@@ -113,7 +110,7 @@ Changes to the script in the local project can be tested using a bind volume as 
 ```bash
 docker run --rm \
   --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
   --volume "$PWD:/app" \
   bank-download
 ```
@@ -124,7 +121,7 @@ or PyFilesystem libraries as follows:
 ```bash
 docker run --rm -it \
   --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials_file.json \
+  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
   --volume "$PWD:/app" \
   --entrypoint ipython \
   bank-download

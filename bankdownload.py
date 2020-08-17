@@ -8,7 +8,7 @@ from contextlib import contextmanager
 
 import gspread
 from fs import open_fs
-from oauth2client.service_account import ServiceAccountCredentials
+import google.auth
 
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), 'logging.conf'))
 
@@ -267,9 +267,7 @@ def main():
     generated. A cut-off date can be set before which no transactions are uploaded (useful when
     archiving transactions).
     """
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(
-        os.environ['SERVICE_ACCOUNT_CREDENTIALS_FILE'], SPREADSHEETS_SCOPE
-    )
+    credentials, _ = google.auth.default(scopes=SPREADSHEETS_SCOPE)
 
     gc = gspread.authorize(credentials)
 
