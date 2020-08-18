@@ -4,6 +4,7 @@ import hashlib
 import logging
 import logging.config
 import os
+import time
 from contextlib import contextmanager
 
 import gspread
@@ -346,6 +347,8 @@ def main():
 
     LOGGER.info(f'{len(new_rows)} new transactions')
 
+    current_row_count = transactions.row_count
+
     if len(new_rows) > 0:
         # append new rows to transaction sheet
         with append_new_rows(transactions, len(new_rows), len(COLUMNS)) as new_row_cells:
@@ -358,6 +361,11 @@ def main():
         with append_new_rows(processed, len(new_files), 1) as new_file_cells:
             for i, value in enumerate(new_files):
                 new_file_cells[i].value = value
+
+    # always re-sort the transactions after 1 second
+    time.sleep(1)
+    end = gspread.utils.rowcol_to_a1(current_row_count + len(new_rows), len(COLUMNS))
+    transactions.sort((2, 'asc'), range=f'A2:{end}')
 
 
 if __name__ == "__main__":

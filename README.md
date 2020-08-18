@@ -58,7 +58,7 @@ target sheet. The set up steps are as follows:
 Then running the following docker command will output the script to the current working directory:
 
 ```bash
-export VERSION=1.0
+export VERSION=1.1
 
 docker run --rm \
   --env-file bankdownload.env \
