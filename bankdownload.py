@@ -23,9 +23,6 @@ SPREADSHEETS_SCOPE = [
 # the name of the worksheet maintaining processed files
 WORKSHEET_PROCESSED = 'Processed'
 
-# the name of the transactions worksheet
-WORKSHEET_TRANSACTIONS = 'Transactions'
-
 # the Google Sheet's epoch date
 EPOCH = datetime.datetime(1899, 12, 30)
 
@@ -205,13 +202,13 @@ def get_or_create_processed(spreadsheet):
     return processed
 
 
-def get_or_create_transactions(spreadsheet):
-    """Gets or creates the 'Transactions' worksheet. If creating, writes the header row"""
+def get_or_create_transactions(spreadsheet, worksheet_name):
+    """Gets or creates a transactions worksheet. If creating, writes the header row"""
     try:
-        transactions = spreadsheet.worksheet(WORKSHEET_TRANSACTIONS)
+        transactions = spreadsheet.worksheet(worksheet_name)
     except gspread.WorksheetNotFound:
         transactions = spreadsheet.add_worksheet(
-            title=WORKSHEET_TRANSACTIONS, rows=1, cols=len(COLUMNS)
+            title=worksheet_name, rows=1, cols=len(COLUMNS)
         )
         cell_list = transactions.range(1, 1, 1, len(COLUMNS))
         for i, column in enumerate(COLUMNS):
@@ -226,6 +223,18 @@ def get_or_create_transactions(spreadsheet):
             }
         })
     return transactions
+
+
+def get_worksheet_name(sheet_date):
+    """
+    Generates the transaction worksheet's name from a sheet date (epoch date).
+    Each transaction worksheets arec divided into tax years.
+    """
+    date = EPOCH + datetime.timedelta(days=sheet_date)
+    year = date.year
+    if date < datetime.datetime(year, 4, 1, 0, 0):
+        year -= 1
+    return f'Transactions {year}/{year + 1}'
 
 
 @contextmanager
@@ -293,51 +302,64 @@ def main():
     # A list of new files processed
     new_files = []
 
-    # the 'Transactions' worksheet
-    transactions = get_or_create_transactions(spreadsheet)
-
     # open the input path
     input_path = open_fs(os.environ['INPUT_PATH'])
 
     # the date before which transactions should be ignored
     cut_off_date = os.environ.get('CUT_OFF_DATE', 0)
 
-    # retrieve all the existing ids from the sheet
-    existing_ids = {id for id in transactions.col_values(
-        ID + 1, value_render_option='FORMULA'
-    )}
+    # a `dict` (keyed on worksheet) of sets of existing ids
+    existing_ids_by_worksheet = {}
 
-    # a list of converted sheet rows returned from `process_download()`
-    new_rows = []
+    # a `dict` (keyed on worksheet) of lists of converted sheet rows returned from
+    # `process_download()`
+    new_rows_by_worksheet = {}
+
+    def validate_and_assign_row(sheet_row):
+        """
+        Validate a row and assign it to a transaction worksheet (if it isn't already in there).
+        If the row is valid and not a duplicate then the worksheet name is returned
+        (else None). `existing_ids_by_worksheet` is also populated here, if required.
+        """
+        # is the transaction non-zero and after the `cut_off_date`?
+        valid_so_far = (
+            not (sheet_row[MONEY_IN] is None and sheet_row[MONEY_OUT] is None) and
+            sheet_row[DATE] >= cut_off_date
+        )
+
+        # if the transaction is valid check that it isn't already in the worksheet
+        # (populating `existing_ids_by_worksheet`, if required) and assign the transaction
+        if valid_so_far:
+            worksheet_name = get_worksheet_name(sheet_row[DATE])
+            if worksheet_name not in existing_ids_by_worksheet:
+                transactions = get_or_create_transactions(spreadsheet, worksheet_name)
+                # retrieve all the existing ids from the sheet
+                existing_ids_by_worksheet[worksheet_name] = {
+                    id for id in transactions.col_values(ID + 1, value_render_option='FORMULA')
+                }
+                # also initialise `new_rows_by_worksheet`
+                new_rows_by_worksheet[worksheet_name] = []
+
+            if sheet_row[ID] not in existing_ids_by_worksheet[worksheet_name]:
+                new_rows_by_worksheet[worksheet_name].append(sheet_row)
+                # add the new id to the existing ids
+                existing_ids_by_worksheet[worksheet_name].add(sheet_row[ID])
 
     def process_download(file_type, account_name, file_name):
         """
         A closure that processes a CSV `file_name` for a particular `file_type` and `account_name`
         and updates list of new rows and set of existing ids.
         """
-        # get the id, money, and date converters for the file_type and account_name
-        key = (file_type, account_name)
-        convert_id = CONVERSIONS[key][ID - 1]
-        convert_money_in = CONVERSIONS[key][MONEY_IN - 1]
-        convert_money_out = CONVERSIONS[key][MONEY_OUT - 1]
-        convert_date = CONVERSIONS[key][DATE - 1]
+
         # get the row converters
-        converters = [lambda _: account_name] + CONVERSIONS[key]
+        converters = [lambda _: account_name] + CONVERSIONS[(file_type, account_name)]
         with input_path.open(file_name) as csvfile:
             reader = csv.reader(csvfile)
             # discard the header
             next(reader)
-            # filter all the new non-zero transactions > the cut_off_date
-            # and convert them to sheet rows
-            sheet_rows = [
-                [convert(row) for convert in converters]
-                for row in reader if
-                convert_id(row) not in existing_ids and
-                convert_date(row) >= cut_off_date and
-                not (convert_money_in(row) is None and convert_money_out(row) is None)
-            ]
-            new_rows.extend(sheet_rows)
-            existing_ids.update({row[ID] for row in sheet_rows})
+            # convert a row, validate it, and assign it to a worksheet to be added at the end.
+            for row in reader:
+                validate_and_assign_row([convert(row) for convert in converters])
 
     # walk the tree of CSV files
     for step in input_path.walk(filter=['*.csv']):
@@ -353,27 +375,36 @@ def main():
                 # add the file_name to new_files
                 new_files.append(file_name)
 
-    LOGGER.info(f'{len(new_rows)} new transactions')
+    total_transactions = 0
 
-    current_row_count = transactions.row_count
+    # for each worksheet..
+    for worksheet_name, new_rows in new_rows_by_worksheet.items():
+        total_transactions += len(new_rows)
+        if len(new_rows) > 0:
+            LOGGER.info(f'{worksheet_name}: {len(new_rows)} new transactions')
 
-    if len(new_rows) > 0:
-        # append new rows to transaction sheet
-        with append_new_rows(transactions, len(new_rows), len(COLUMNS)) as new_row_cells:
-            for i, row in enumerate(new_rows):
-                for j, value in enumerate(row):
-                    new_row_cells[i * len(COLUMNS) + j].value = value
+            transactions = get_or_create_transactions(spreadsheet, worksheet_name)
+
+            current_row_count = transactions.row_count
+
+            # append new rows to transaction sheet
+            with append_new_rows(transactions, len(new_rows), len(COLUMNS)) as new_row_cells:
+                for i, row in enumerate(new_rows):
+                    for j, value in enumerate(row):
+                        new_row_cells[i * len(COLUMNS) + j].value = value
+
+            # always re-sort the transactions after 1 second
+            time.sleep(1)
+            end = gspread.utils.rowcol_to_a1(current_row_count + len(new_rows), len(COLUMNS))
+            transactions.sort((2, 'asc'), range=f'A2:{end}')
+
+    LOGGER.info(f'Total: {total_transactions} new transactions')
 
     if len(new_files) > 0:
         # append new files to processed sheet
         with append_new_rows(processed, len(new_files), 1) as new_file_cells:
             for i, value in enumerate(new_files):
                 new_file_cells[i].value = value
-
-    # always re-sort the transactions after 1 second
-    time.sleep(1)
-    end = gspread.utils.rowcol_to_a1(current_row_count + len(new_rows), len(COLUMNS))
-    transactions.sort((2, 'asc'), range=f'A2:{end}')
 
 
 if __name__ == "__main__":
