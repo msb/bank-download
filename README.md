@@ -58,7 +58,7 @@ target sheet. The set up steps are as follows:
 Then running the following docker command will output the script to the current working directory:
 
 ```bash
-export VERSION=1.1
+export VERSION=1.2
 
 docker run --rm \
   --env-file bankdownload.env \
@@ -70,8 +70,7 @@ docker run --rm \
 The script uses [PyFilesystem](https://github.com/pyfilesystem/pyfilesystem2) to write to the
 output path so the script can be configured to write to any file system supported by PyFilesystem
 which could be useful if you aren't running docker locally. The container has been configured with
-the `fs.dropboxfs` and  `fs.onedrivefs` third party file systems and a 
-[custom WIP version of `fs.googledrivefs`](https://github.com/msb/fs.googledrivefs/tree/service-account-support).
+the `fs.dropboxfs`, `fs.onedrivefs`, and `fs.googledrivefs` third party file systems.
 
 ### Configuring the output path with fs.googledrivefs
 

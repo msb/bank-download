@@ -1,5 +1,6 @@
 ipython
 fs.dropboxfs
 fs.onedrivefs
+fs.googledrivefs
 gspread
 oauth2client
