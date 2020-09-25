@@ -217,6 +217,14 @@ def get_or_create_transactions(spreadsheet):
         for i, column in enumerate(COLUMNS):
             cell_list[i].value = column
         transactions.update_cells(cell_list)
+        # if we format the date header row with the required date format,
+        # subsequent values will use this format.
+        transactions.format(gspread.utils.rowcol_to_a1(1, DATE + 1), {
+            "numberFormat": {
+                "type": "DATE",
+                "pattern": "yyyy-mm-dd"
+            }
+        })
     return transactions
 
 
