@@ -50,7 +50,7 @@ target sheet. The set up steps are as follows:
    complete by the inclusion of 
    [the `project` folder](https://github.com/msb/bank-download/tree/master/project).
    Note that when running `terraform.output.sh` you should target the output at 
-   [the `runner` folder](https://github.com/msb/bank-download/tree/master/runner) as the following.
+   [the `runner` folder](https://github.com/msb/bank-download/tree/master/runner) as the following
    documentation expects to find the service account credentials there.
  - Allow the service account read/write permission on the sheet 
    (use the email address found in the credentials file in the `runner` folder)
