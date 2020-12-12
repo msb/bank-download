@@ -1,0 +1,44 @@
+# A map of conversions keyed on the file type they apply to.
+conversions:
+  # The file type to convert - relates to the top level folder name. Each item in the list relates
+  # to a field converter function and it's parameters. For a description of all the functions, see
+  # `conversions.py`. The list order matches the sheet's columns.
+  'a CSV file format':
+    # transaction date
+  - ['convert_date', 1, '%Y-%m-%dT%H:%M:%SZ']
+    # transaction description
+  - ['identity', 8]
+    # CSV specific transaction type
+  - ['identity', 6]
+    # the "in" transaction amount
+  - ['convert_amount', 2, false]
+    # the "out" transaction amount
+  - ['convert_amount', 2, true]
+    # transaction id
+  - ['identity', 0]
+    # 'x' if the transaction is reconciled
+  - ['constant', 'x']
+    # the transaction's spending category
+  - ['convert_category', 10, 6, 'extra_categories']
+  'another CSV file format':
+  - ['convert_date', 0, '%Y-%m-%d']
+  - ['identity', 1]
+  - ['constant', null]
+  - ['convert_amount_simple', 2]
+  - ['convert_amount_simple', 3]
+  - ['generate_id', [0, 1, 2, 3]]
+  # the list doesn't have to be complete
+
+# 'convert_category' will only accept a category if it's in this list.
+categories:
+  - 'Transfer'
+  - 'Groceries'
+  - 'Cash'
+  - 'Holiday'
+  - 'Auto'
+  - 'Energy'
+  - 'Eating Out'
+
+# Used by 'convert_category' to map CSV specific transaction types not in the `categories` list.
+extra_categories:
+  'Restaurant': 'Eating Out'
