@@ -4,3 +4,6 @@ fs.onedrivefs
 fs.googledrivefs
 gspread
 oauth2client
+geddit
+pyyaml
+dpath

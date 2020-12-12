@@ -3,4 +3,5 @@ __pycache__
 *.json
 venv
 runner/*.tf
+runner/*.yml
 locals.tf

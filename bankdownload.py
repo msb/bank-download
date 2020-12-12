@@ -1,15 +1,17 @@
 import csv
-import datetime
-import hashlib
 import logging
 import logging.config
 import os
 import time
 from contextlib import contextmanager
 
+from datetime_sheet import EPOCH, datetime
 import gspread
 from fs import open_fs
 import google.auth
+import dpath.util as dpath
+import yaml
+import geddit
 
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), 'logging.conf'))
 
@@ -23,106 +25,6 @@ SPREADSHEETS_SCOPE = [
 # the name of the worksheet maintaining processed files
 WORKSHEET_PROCESSED = 'Processed'
 
-# the Google Sheet's epoch date
-EPOCH = datetime.datetime(1899, 12, 30)
-
-
-def create_convert_date(index, format):
-    """
-    returns a converter for field `index` that converts the value (of format `format`) to a sheet
-    date
-    """
-    return lambda row: (datetime.datetime.strptime(row[index], format) - EPOCH).days
-
-
-def create_convert_amount_simple(index):
-    """
-    returns a converter for field `index` that converts the value to an amount
-    """
-    return lambda row: abs(float(row[index])) if row[index] else None
-
-
-def create_convert_amount(index, out):
-    """
-    returns a converter for field `index` that converts the value to either an 'in' or 'out amount
-    """
-    def convert_amount(row):
-        amount = float(row[index])
-        amount = abs(min(amount, 0) if out else max(amount, 0))
-        return amount if amount > 0 else None
-    return convert_amount
-
-
-def create_convert_id(indices):
-    """
-    Returns a converter for fields `indices` that converts then to a hash to be used as an id.
-    NOTE: this isn't guaranteed to produce a unique ID also any updates to the transaction data
-    will cause to id to change.
-    """
-    def convert_id(row):
-        sha256 = hashlib.sha256()
-        for i in indices:
-            sha256.update(row[i].encode('utf-8'))
-        return sha256.hexdigest()[:16]
-    return convert_id
-
-
-# A map of matching category keyed by their category tags.
-CATEGORIES_BY_TAG = {f'#{"".join(category.lower().split())}': category for category in {
-    'Transfer',
-    'Maintenance',
-    'Groceries',
-    'Cash',
-    'Holiday',
-    'Auto',
-    'Energy',
-    'Presents',
-    'Gadgets',
-    'Pastimes',
-    'Entertainment',
-    'Mobile',
-    'Internet',
-    'Water',
-    'Charity',
-    'Medical',
-    'Transport',
-    'Betting',
-    'Official',
-    'Clothing',
-    'Homeware',
-    'Biking',
-    'Cleaning',
-    'Council Tax',
-    'Eating Out',
-    'Home Insurance',
-    'White Goods',
-    'TV License',
-}}
-
-# The full set of categories
-CATEGORIES = {category: category for category in CATEGORIES_BY_TAG.values()}
-# Additional mappings
-CATEGORIES = {**CATEGORIES, 'Eating out': 'Eating Out'}
-
-
-def create_convert_monzo_category(notes_index, category_index):
-    """
-    Returns a converter for a monzo category. Uses the "category" row (if it exists in CATEGORIES)
-    unless the "notes" row has a tag that matches a known category. The tags aren't case sensitive.
-    """
-    def convert_monzo_category(row):
-        categories = [
-            CATEGORIES_BY_TAG[word.lower()] for word in row[notes_index].split()
-            if word.startswith('#') and word.lower() in CATEGORIES_BY_TAG
-        ]
-
-        for category in categories:
-            return category
-
-        return CATEGORIES.get(row[category_index])
-    return convert_monzo_category
-
-
 # the transactions worksheet's column titles
 COLUMNS = [
     'Account', 'Date', 'Description', 'Type', 'Money In', 'Money Out', 'Id', 'Reconciled',
@@ -135,61 +37,29 @@ MONEY_IN = COLUMNS.index('Money In')
 MONEY_OUT = COLUMNS.index('Money Out')
 ID = COLUMNS.index('Id')
 
-# A list of converters for a Monzo CSV (version 1).
-CONVERSION_MONZO = [
-    create_convert_date(1, '%Y-%m-%dT%H:%M:%SZ'),
-    lambda row: row[8],
-    lambda row: row[6],
-    create_convert_amount(2, False),
-    create_convert_amount(2, True),
-    lambda row: row[0],
-    lambda _: 'x',
-    create_convert_monzo_category(10, 6),
-]
 
-# A list of converters for a Monzo CSV (version 2).
-CONVERSION_MONZO_2 = [
-    create_convert_date(1, '%d/%m/%Y'),
-    lambda row: row[4],
-    lambda row: row[6],
-    create_convert_amount(7, False),
-    create_convert_amount(7, True),
-    lambda row: row[0],
-    lambda _: 'x',
-    create_convert_monzo_category(11, 6),
-]
+def load_conversions():
+    """
+    Loads configuration for how to map/convert CSV rows to sheet rows from multiple urls. A map of
+    created converters are return: an array (one per sheet row) for each account name.
+    """
+    conversions = {}
+    for url in os.environ['CONVERSIONS_URLS'].split():
+        LOGGER.info(f'Loading conversions from {url}')
+        conversions = dpath.merge(conversions, yaml.safe_load(geddit.geddit(url)))
 
-# A list of converters for a Smile CSV.
-CONVERSION_SMILE = [
-    create_convert_date(0, '%Y-%m-%d'),
-    lambda row: row[1],
-    lambda row: row[2],
-    create_convert_amount_simple(3),
-    create_convert_amount_simple(4),
-    create_convert_id(range(0, 5)),
-]
+    conversions_module = __import__('conversions')
 
-# A list of converters for a Smile CC CSV.
-CONVERSION_SMILE_CC = [
-    create_convert_date(0, '%Y-%m-%d'),
-    lambda row: row[1],
-    lambda _: None,
-    create_convert_amount_simple(2),
-    create_convert_amount_simple(3),
-    create_convert_id(range(0, 4)),
-]
-
-# A map of conversions keyed on the account name they apply to
-CONVERSIONS = {
-    ('Monzo', 'Monzo'): CONVERSION_MONZO,
-    ('Monzo', 'Monzo Joint'): CONVERSION_MONZO,
-    ('Monzo 2', 'Monzo'): CONVERSION_MONZO_2,
-    ('Monzo 2', 'Monzo Joint'): CONVERSION_MONZO_2,
-    ('Smile', 'Smile'): CONVERSION_SMILE,
-    ('Smile', 'Smile Joint'): CONVERSION_SMILE,
-    ('Smile CC', 'Smile CC'): CONVERSION_SMILE_CC,
-    ('Smile CC', 'Smile CC Joint'): CONVERSION_SMILE_CC,
-}
+    return {
+        (file_type, account_name): [
+            # dynamically call create converter functions in the conversions module
+            getattr(conversions_module, f"create_{creator}")(
+                *args, conversions=conversions
+            )
+            for creator, *args in conversions[conversion]
+        ]
+        for file_type, account_name, conversion in conversions['conversions']
+    }
 
 
 def get_or_create_processed(spreadsheet):
@@ -284,7 +154,12 @@ def main():
     uploaded again using the transaction's id. If the transaction doesn't have an id then one is
     generated. A cut-off date can be set before which no transactions are uploaded (useful when
     archiving transactions).
+
+    One or more conversion configuration files must be provided and between them they define how
+    the CSV files in each of the account folders should be mapped/converted to the sheet.
     """
+    conversions = load_conversions()
+
     credentials, _ = google.auth.default(scopes=SPREADSHEETS_SCOPE)
 
     gc = gspread.authorize(credentials)
@@ -352,7 +227,7 @@ def main():
         """
 
         # get the row converters
-        converters = [lambda _: account_name] + CONVERSIONS[(file_type, account_name)]
+        converters = [lambda _: account_name] + conversions[(file_type, account_name)]
         with input_path.open(file_name) as csvfile:
             reader = csv.reader(csvfile)
             # discard the header

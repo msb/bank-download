@@ -31,13 +31,17 @@ uploaded again using the transaction's id. If the transaction doesn't have an id
 generated. A cut-off date can be set before which no transactions are uploaded (useful when
 archiving transactions).
 
+One or more conversion configuration files must be provided and between them they define how
+the CSV files in each of the account folders should be mapped/converted to the sheet.
+
 To run the script in it's simplest form, create a `bankdownload.env` file with the following
 variables:
 
 ```
-GOOGLE_APPLICATION_CREDENTIALS=/credentials.json
+GOOGLE_APPLICATION_CREDENTIALS=/config/service_account_credentials.json
 INPUT_PATH=osfs:///path/to/root
 SPREADSHEET_KEY={sheet id}
+CONVERSIONS_URLS=/config/conversions.yml
 ```
 
 To get the sheet id, create a sheet and then get the id from the sheet's. There are different ways
@@ -55,14 +59,19 @@ target sheet. The set up steps are as follows:
  - Allow the service account read/write permission on the sheet 
    (use the email address found in the credentials file in the `runner` folder)
 
+Define `conversions.yml` by following the description in
+[conversions.example.yml](https://github.com/msb/bank-download/blob/master/conversions.example.yml)
+and placing the resulting file in
+[the `runner` folder](https://github.com/msb/bank-download/tree/master/runner).
+
 Then running the following docker command will output the script to the current working directory:
 
 ```bash
-export VERSION=1.2
+export VERSION=1.3
 
 docker run --rm \
   --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
+  --volume $PWD/runner:/config \
   --user $(id -u):$(id -g) --volume "$PWD:/data" \
   msb140610/bank-download:$VERSION
 ```
@@ -91,7 +100,7 @@ with no need for a bind volume.
 
 ```bash
 docker run --rm --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
+  --volume $PWD/runner:/config \
   msb140610/bank-download:$VERSION
 ```
 
@@ -110,7 +119,7 @@ Changes to the script in the local project can be tested using a bind volume as 
 ```bash
 docker run --rm \
   --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
+  --volume $PWD/runner:/config \
   --volume "$PWD:/app" \
   bank-download
 ```
@@ -121,7 +130,7 @@ or PyFilesystem libraries as follows:
 ```bash
 docker run --rm -it \
   --env-file bankdownload.env \
-  --volume $PWD/runner/service_account_credentials.json:/credentials.json \
+  --volume $PWD/runner:/config \
   --volume "$PWD:/app" \
   --entrypoint ipython \
   bank-download
