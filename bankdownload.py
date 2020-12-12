@@ -51,14 +51,14 @@ def load_conversions():
     conversions_module = __import__('conversions')
 
     return {
-        (file_type, account_name): [
+        file_type: [
             # dynamically call create converter functions in the conversions module
             getattr(conversions_module, f"create_{creator}")(
                 *args, conversions=conversions
             )
-            for creator, *args in conversions[conversion]
+            for creator, *args in conversion
         ]
-        for file_type, account_name, conversion in conversions['conversions']
+        for file_type, conversion in conversions['conversions'].items()
     }
 
 
@@ -227,7 +227,7 @@ def main():
         """
 
         # get the row converters
-        converters = [lambda _: account_name] + conversions[(file_type, account_name)]
+        converters = [lambda _: account_name] + conversions[file_type]
         with input_path.open(file_name) as csvfile:
             reader = csv.reader(csvfile)
             # discard the header
