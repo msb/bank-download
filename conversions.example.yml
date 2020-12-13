@@ -39,6 +39,19 @@ categories:
   - 'Energy'
   - 'Eating Out'
 
-# Used by 'convert_category' to map CSV specific transaction types not in the `categories` list.
+# Used by 'convert_category' to map:
+# - CSV specific transaction types not in the `categories` list
+# - tags
 extra_categories:
   'Restaurant': 'Eating Out'
+  # tags
+  '#transfer': 'Transfer'
+  '#t': 'Transfer'
+  '#cash': 'Cash'
+  '#c': 'Cash'
+  '#holiday': 'Holiday'
+  '#h': 'Holiday'
+  '#auto': 'Auto'
+  '#a': 'Auto'
+  '#energy': 'Energy'
+  '#e': 'Energy'

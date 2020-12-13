@@ -64,23 +64,21 @@ def create_generate_id(indices, **kwargs):
 
 def create_convert_category(notes_index, category_index, category_map_name, conversions):
     """
-    Returns a converter for a spending category. Uses the "category" row (if it exists in
-    `conversions['categories']`) unless the "notes" row has a tag that matches a known category.
-    The tags aren't case sensitive.
+    Returns a converter for a spending category. Attempts to resolve a valid category from either a
+    tag in the "notes" row or then the "category" row. Valid categories are defined in
+    `conversions['categories']` and additional category mappings and tag mappings are defined in
+    `conversions[category_map_name]`. The tags aren't case sensitive.
     """
-    category_map = {
-        **conversions[category_map_name],
-        **{category: category for category in conversions['categories']}
-    }
-
-    categories_by_tag = {
-        f'#{"".join(category.lower().split())}': category for category in conversions['categories']
-    }
+    # make a "set like" dict of all the categories
+    category_map = {category: category for category in conversions['categories']}
+    # update it with all the extra category and tag mappings
+    category_map.update(conversions[category_map_name])
 
     def convert_category(row):
-        for word in row[notes_index].split():
-            if word.startswith('#') and word.lower() in categories_by_tag:
-                return categories_by_tag[word.lower()]
-
-        return category_map.get(row[category_index])
+        categories = [word.lower() for word in row[notes_index].split() if word.startswith('#')]
+        categories.append(row[category_index])
+        for category in categories:
+            if category in category_map:
+                return category_map[category]
+        return None
     return convert_category
