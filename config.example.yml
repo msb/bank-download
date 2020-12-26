@@ -1,3 +1,13 @@
+# The root path to read the input data from (use PyFilesystem urls).
+input_path: osfs:///data
+
+# The key of a google spreadsheet that is the target of the data upload. The README gives
+# instructions on how to configure the sheet.
+spreadsheet_key: "?????"
+
+# The date before which transactions should be ignored (optional).
+cut_off_date: 0
+
 # A map of conversions keyed on the file type they apply to.
 conversions:
   # The file type to convert - relates to the top level folder name. Each item in the list relates

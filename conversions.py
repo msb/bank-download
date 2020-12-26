@@ -62,17 +62,17 @@ def create_generate_id(indices, **kwargs):
     return convert_id
 
 
-def create_convert_category(notes_index, category_index, category_map_name, conversions):
+def create_convert_category(notes_index, category_index, category_map_name, config):
     """
     Returns a converter for a spending category. Attempts to resolve a valid category from either a
     tag in the "notes" row or then the "category" row. Valid categories are defined in
-    `conversions['categories']` and additional category mappings and tag mappings are defined in
-    `conversions[category_map_name]`. The tags aren't case sensitive.
+    `config['categories']` and additional category mappings and tag mappings are defined in
+    `config[category_map_name]`. The tags aren't case sensitive.
     """
     # make a "set like" dict of all the categories
-    category_map = {category: category for category in conversions['categories']}
+    category_map = {category: category for category in config['categories']}
     # update it with all the extra category and tag mappings
-    category_map.update(conversions[category_map_name])
+    category_map.update(config[category_map_name])
 
     def convert_category(row):
         categories = [word.lower() for word in row[notes_index].split() if word.startswith('#')]

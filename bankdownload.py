@@ -38,27 +38,32 @@ MONEY_OUT = COLUMNS.index('Money Out')
 ID = COLUMNS.index('Id')
 
 
-def load_conversions():
+def load_config():
+    """
+    Loads the config from a set of urls using [geddit](https://pypi.org/project/geddit/) and merges
+    them into a single dict.
+    """
+    config = {}
+    for url in os.environ['CONFIG_URLS'].split():
+        LOGGER.info(f'Loading conversions from {url}')
+        config = dpath.merge(config, yaml.safe_load(geddit.geddit(url)))
+
+    return config
+
+def load_conversions(config):
     """
     Loads configuration for how to map/convert CSV rows to sheet rows from multiple urls. A map of
     created converters are return: an array (one per sheet row) for each account name.
     """
-    conversions = {}
-    for url in os.environ['CONVERSIONS_URLS'].split():
-        LOGGER.info(f'Loading conversions from {url}')
-        conversions = dpath.merge(conversions, yaml.safe_load(geddit.geddit(url)))
-
     conversions_module = __import__('conversions')
 
     return {
         file_type: [
             # dynamically call create converter functions in the conversions module
-            getattr(conversions_module, f"create_{creator}")(
-                *args, conversions=conversions
-            )
+            getattr(conversions_module, f"create_{creator}")(*args, config=config)
             for creator, *args in conversion
         ]
-        for file_type, conversion in conversions['conversions'].items()
+        for file_type, conversion in config['conversions'].items()
     }
 
 
@@ -158,13 +163,14 @@ def main():
     One or more conversion configuration files must be provided and between them they define how
     the CSV files in each of the account folders should be mapped/converted to the sheet.
     """
-    conversions = load_conversions()
+    config = load_config()
+    conversions = load_conversions(config)
 
     credentials, _ = google.auth.default(scopes=SPREADSHEETS_SCOPE)
 
     gc = gspread.authorize(credentials)
 
-    spreadsheet = gc.open_by_key(os.environ['SPREADSHEET_KEY'])
+    spreadsheet = gc.open_by_key(config['spreadsheet_key'])
 
     # the 'Processed' worksheet
     processed = get_or_create_processed(spreadsheet)
@@ -178,10 +184,10 @@ def main():
     new_files = []
 
     # open the input path
-    input_path = open_fs(os.environ['INPUT_PATH'])
+    input_path = open_fs(config['input_path'])
 
     # the date before which transactions should be ignored
-    cut_off_date = os.environ.get('CUT_OFF_DATE', 0)
+    cut_off_date = config.get('cut_off_date', 0)
 
     # a `dict` (keyed on worksheet) of sets of existing ids
     existing_ids_by_worksheet = {}
