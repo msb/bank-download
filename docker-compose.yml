@@ -1,0 +1,29 @@
+version: '3.2'
+services:
+
+  base-service: &base-service
+    image: bank-download
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/config/service_account_credentials.json
+      - CONFIG_URLS=/config/config.yml
+    volumes:
+      - &config
+        type: bind
+        source: ./runner
+        target: /config
+        read_only: true
+
+  bank-download: 
+    <<: *base-service
+    image: msb140610/bank-download:1.4
+
+  bank-download-dev:
+    <<: *base-service
+    build:
+      context: .
+    volumes:
+      - *config
+      - type: bind
+        source: .
+        target: /app
+        read_only: true
